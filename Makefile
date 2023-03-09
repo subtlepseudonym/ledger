@@ -1,6 +1,9 @@
-default: all
+default: build
 
-all: test clean
+all: test build clean
+
+build: format
+	go build -o plaid2csv *.go
 
 test:
 	gotest --race -v ./...
@@ -12,4 +15,4 @@ clean:
 	go mod tidy
 	go clean
 
-.PHONY: all test format fmt clean
+.PHONY: all build clean format fmt test
