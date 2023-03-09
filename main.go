@@ -38,7 +38,8 @@ var (
 	configPath string
 	outputPath string
 
-	ignorePending     bool
+	omitHeader bool
+	omitPending     bool
 	transactionCount  int
 	categoryDelimiter string
 
@@ -55,7 +56,8 @@ func main() {
 	endDate := flag.String("end", "", "End date, inclusive. Format: YYYY-MM-DD")
 
 	// optional
-	flag.BoolVar(&ignorePending, "ignore-pending", false, "Omit pending transactions")
+	flag.BoolVar(&omitHeader, "omit-header", false, "Omit csv header")
+	flag.BoolVar(&omitPending, "omit-pending", false, "Omit pending transactions")
 	flag.IntVar(&transactionCount, "count", defaultTransactionCount, "Number of transactions to request, 0-500")
 	flag.StringVar(&categoryDelimiter, "category-delimiter", defaultCategoryDelimiter, "Delimiter for joining category hierarchy")
 
@@ -104,18 +106,20 @@ func main() {
 	}
 
 	output := csv.NewWriter(outputFile)
-	headers := []string{
-		"Post Date",
-		"Authorized Date",
-		"Account",
-		"Check Number",
-		"Payee",
-		"Amount",
-		"Currency",
-		"Category",
-		"Transaction ID",
+	if !omitHeader {
+		headers := []string{
+			"Post Date",
+			"Authorized Date",
+			"Account",
+			"Check Number",
+			"Payee",
+			"Amount",
+			"Currency",
+			"Category",
+			"Transaction ID",
+		}
+		output.Write(headers)
 	}
-	output.Write(headers)
 	err = WriteTransactions(output, response, &config)
 	if err != nil {
 		log.Printf("Error writing transactions to output: %s\n", err)
@@ -194,7 +198,7 @@ func RequestTransactions(config *Config, start, end time.Time, count, offset int
 
 func WriteTransactions(output *csv.Writer, response *TransactionsResponse, config *Config) error {
 	for _, transaction := range response.Transactions {
-		if ignorePending && transaction.Pending {
+		if omitPending && transaction.Pending {
 			continue
 		}
 
