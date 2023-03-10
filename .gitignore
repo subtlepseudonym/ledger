@@ -1,4 +1,7 @@
 plaid2csv
 config.yaml
 transactions.csv
+
+# scratch files
+*.json
 tmp
