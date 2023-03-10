@@ -24,7 +24,8 @@ type Config struct {
 }
 
 const (
-	defaultTransactionCount  = 500 // max value
+	defaultEnvironment       = "sandbox" // free and (mostly) fully featured
+	defaultTransactionCount  = 500       // max value
 	defaultCategoryDelimiter = "."
 
 	defaultDateFormat   = "2006-01-02"
@@ -35,11 +36,12 @@ const (
 )
 
 var (
-	configPath string
-	outputPath string
+	environment string
+	configPath  string
+	outputPath  string
 
-	omitHeader bool
-	omitPending     bool
+	omitHeader        bool
+	omitPending       bool
 	transactionCount  int
 	categoryDelimiter string
 
@@ -50,6 +52,7 @@ var (
 
 func main() {
 	// required
+	flag.StringVar(&environment, "environment", defaultEnvironment, "Environment to run in (sandbox|development|production)")
 	flag.StringVar(&configPath, "config", "config.yaml", "Config file path")
 	flag.StringVar(&outputPath, "output", "transactions.csv", "Path for output file")
 	startDate := flag.String("start", "", "Start date, inclusive. Format: YYYY-MM-DD")
@@ -65,6 +68,12 @@ func main() {
 	flag.StringVar(&authDateFormat, "format-auth-date", defaultDateFormat, "Output format for transaction authorization date")
 	flag.StringVar(&amountFormat, "format-amount", defaultAmountFormat, "Output format for amount")
 	flag.Parse()
+
+	if environment == "production" {
+		// TODO: prompt "you sure?"
+		fmt.Println("Error: production access not yet implemented")
+		return
+	}
 
 	start, err := time.Parse(time.DateOnly, *startDate)
 	if err != nil {
@@ -85,10 +94,16 @@ func main() {
 	}
 	defer f.Close()
 
-	var config Config
-	err = yaml.NewDecoder(f).Decode(&config)
+	configs := make(map[string]*Config)
+	err = yaml.NewDecoder(f).Decode(configs)
 	if err != nil {
 		log.Printf("Error decoding config file: %s\n", err)
+		return
+	}
+
+	config, ok := configs[environment]
+	if !ok {
+		log.Printf("Unknown environment: %q\n", environment)
 		return
 	}
 
@@ -99,7 +114,7 @@ func main() {
 	}
 	defer outputFile.Close()
 
-	response, err := RequestTransactions(&config, start, end, transactionCount, 0)
+	response, err := RequestTransactions(config, start, end, transactionCount, 0)
 	if err != nil {
 		log.Printf("Error requesting transactions from plaid: %s\n", err)
 		return
@@ -120,7 +135,7 @@ func main() {
 		}
 		output.Write(headers)
 	}
-	err = WriteTransactions(output, response, &config)
+	err = WriteTransactions(output, response, config)
 	if err != nil {
 		log.Printf("Error writing transactions to output: %s\n", err)
 		return
@@ -128,13 +143,13 @@ func main() {
 
 	responseTotal := response.Total
 	for response.Total >= transactionCount {
-		response, err = RequestTransactions(&config, start, end, transactionCount, responseTotal)
+		response, err = RequestTransactions(config, start, end, transactionCount, responseTotal)
 		if err != nil {
 			log.Printf("Error requesting transactions from plaid: %s\n", err)
 			return
 		}
 
-		err = WriteTransactions(output, response, &config)
+		err = WriteTransactions(output, response, config)
 		if err != nil {
 			log.Printf("Error writing transactions to output: %s\n", err)
 			return
@@ -168,7 +183,7 @@ func RequestTransactions(config *Config, start, end time.Time, count, offset int
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("https://%s.%s/%s", config.Environment, plaidDomain, transactionsEndpoint)
+	url := fmt.Sprintf("https://%s.%s/%s", environment, plaidDomain, transactionsEndpoint)
 	req, err := http.NewRequest(http.MethodPost, url, &body)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
