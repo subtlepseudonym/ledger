@@ -2,14 +2,18 @@ default: build
 
 all: test build clean
 
-build: format
-	go build -o plaid2csv *.go
+build:
+	mkdir -p bin
+	cd cmd && \
+	for dir in *; do \
+		go build -o "../bin/$$dir" "./$$dir"; \
+	done
 
 test:
 	gotest --race -v ./...
 
 format fmt:
-	gofmt -l -w .
+	go fmt ./...
 
 clean:
 	go mod tidy

@@ -1,6 +1,6 @@
-plaid2csv
 config.yaml
 transactions.csv
+bin/
 
 # scratch files
 *.json
