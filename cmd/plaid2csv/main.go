@@ -2,13 +2,14 @@ package main
 
 import (
 	"encoding/csv"
-	"flag"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"github.com/subtlepseudonym/ledger"
+
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -16,67 +17,87 @@ const (
 )
 
 var (
+	Version = "0.1.0"
+
 	environment string
 	configPath  string
 	outputPath  string
 )
 
 func main() {
-	// required
-	flag.StringVar(&environment, "environment", defaultEnvironment, "Environment to run in (sandbox|development|production)")
-	flag.StringVar(&configPath, "config", "config.yaml", "Config file path")
-	flag.StringVar(&outputPath, "output", "transactions.csv", "Path for output file")
-	startDate := flag.String("start", "", "Start date, inclusive. Format: YYYY-MM-DD")
-	endDate := flag.String("end", "", "End date, inclusive. Format: YYYY-MM-DD")
+	cmd := cobra.Command{
+		Use:     "plaid2csv [flags]",
+		Short:   "Query plaid transaction data and output to csv",
+		Version: Version,
+		RunE:   run,
+	}
 
-	// optional
-	omitHeader := flag.Bool("omit-header", false, "Omit csv header")
-	omitPending := flag.Bool("omit-pending", false, "Omit pending transactions")
-	postDateFormat := flag.String("format-post-date", ledger.DefaultPostDateFormat, "Output format for transaction post date")
-	authDateFormat := flag.String("format-auth-date", ledger.DefaultAuthDateFormat, "Output format for transaction authorization date")
-	amountFormat := flag.String("format-amount", ledger.DefaultAmountFormat, "Output format for amount")
-	categoryDelimiter := flag.String("category-delimiter", ledger.DefaultCategoryDelimiter, "Delimiter for joining category hierarchy")
-	flag.Parse()
+	flags := cmd.Flags()
+	flags.String("start", "", "Start date, inclusive. Format: YYYY-MM-DD")
+	flags.String("end", "", "End date, inclusive. Format: YYYY-MM-DD")
 
+	flags.String("environment", defaultEnvironment, "Environment to run in (sandbox|development|production)")
+	flags.String("config", "config.yaml", "Config file path")
+	flags.String("output", "transactions.csv", "Path for output file")
+
+	flags.Bool("omit-header", false, "Omit csv header")
+	flags.Bool("omit-pending", false, "Omit pending transactions")
+	flags.String("format-post-date", ledger.DefaultPostDateFormat, "Output format for transaction post date")
+	flags.String("format-auth-date", ledger.DefaultAuthDateFormat, "Output format for transaction authorization date")
+	flags.String("format-amount", ledger.DefaultAmountFormat, "Output format for amount")
+	flags.String("category-delimiter", ledger.DefaultCategoryDelimiter, "Delimiter for joining category hierarchy")
+
+	cmd.MarkFlagRequired("start")
+	cmd.MarkFlagRequired("end")
+
+	err := cmd.Execute()
+	if err != nil {
+		os.Exit(1)
+	}
+}
+
+func run(cmd *cobra.Command, args []string) error {
+	flags := cmd.Flags()
+
+	environment, _ := flags.GetString("environment")
 	if environment == "production" {
 		// TODO: prompt "you sure?"
-		fmt.Println("Error: production access not yet implemented")
-		return
+		return fmt.Errorf("production access not yet implemented")
 	}
 
-	start, err := time.Parse(time.DateOnly, *startDate)
+	startDate, _ := flags.GetString("start")
+	start, err := time.Parse(time.DateOnly, startDate)
 	if err != nil {
-		log.Printf("Error parsing start date: %s\n", err)
-		return
+		return fmt.Errorf("parse start date: %w", err)
 	}
 
-	end, err := time.Parse(time.DateOnly, *endDate)
+	endDate, _ := flags.GetString("end")
+	end, err := time.Parse(time.DateOnly, endDate)
 	if err != nil {
-		log.Printf("Error parsing end date: %s\n", err)
-		return
+		return fmt.Errorf("parse end date: %w", err)
 	}
 
+	configPath, _ := flags.GetString("config")
 	config, err := ledger.LoadConfig(configPath, environment)
 	if err != nil {
-		log.Printf("Error loading config from file: %s\n", err)
-		return
+		return fmt.Errorf("load config from file: %w", err)
 	}
 
+	outputPath, _ := flags.GetString("output")
 	outputFile, err := os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Printf("Error opening output file for writing: %s\n", err)
-		return
+		return fmt.Errorf("open output file for writing: %w", err)
 	}
 	defer outputFile.Close()
 
 	responses, err := ledger.RequestTransactions(config, start, end)
 	if err != nil {
-		log.Printf("Error requesting transactions from plaid: %s\n", err)
-		return
+		return fmt.Errorf("request transactions from plaid: %w", err)
 	}
 
 	output := csv.NewWriter(outputFile)
-	if !*omitHeader {
+	omitHeader, _ := flags.GetBool("omit-header")
+	if !omitHeader {
 		headers := []string{
 			"Post Date",
 			"Authorized Date",
@@ -91,12 +112,18 @@ func main() {
 		output.Write(headers)
 	}
 
+	omitPending, _ := flags.GetBool("omit-pending")
+	postDateFormat, _ := flags.GetString("format-post-date")
+	authDateFormat, _ := flags.GetString("format-auth-date")
+	amountFormat, _ := flags.GetString("format-amount")
+	categoryDelimiter, _ := flags.GetString("category-delimiter")
+
 	options := &ledger.WriteOptions{
-		OmitPending:       *omitPending,
-		PostDateFormat:    *postDateFormat,
-		AuthDateFormat:    *authDateFormat,
-		AmountFormat:      *amountFormat,
-		CategoryDelimiter: *categoryDelimiter,
+		OmitPending:       omitPending,
+		PostDateFormat:    postDateFormat,
+		AuthDateFormat:    authDateFormat,
+		AmountFormat:      amountFormat,
+		CategoryDelimiter: categoryDelimiter,
 	}
 
 	for _, response := range responses {
@@ -108,8 +135,9 @@ func main() {
 
 		err = ledger.WriteTransactions(itemConfig, output, &response, options)
 		if err != nil {
-			log.Printf("Error writing transactions for %q to output: %s\n", itemConfig.Name, err)
-			return
+			return fmt.Errorf("write transactions for %q to output: %w", itemConfig.Name, err)
 		}
 	}
+
+	return nil
 }
