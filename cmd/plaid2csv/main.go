@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	defaultEnvironment       = "sandbox" // free and (mostly) fully featured
-	defaultTransactionCount  = 500       // max value
+	defaultEnvironment = "sandbox" // free and (mostly) fully featured
 )
 
 var (
@@ -21,8 +20,7 @@ var (
 	configPath  string
 	outputPath  string
 
-	omitHeader        bool
-	transactionCount  int
+	omitHeader bool
 )
 
 func main() {
@@ -35,8 +33,6 @@ func main() {
 
 	// optional
 	flag.BoolVar(&omitHeader, "omit-header", false, "Omit csv header")
-	flag.IntVar(&transactionCount, "count", defaultTransactionCount, "Number of transactions to request, 0-500")
-
 	omitPending := flag.Bool("omit-pending", false, "Omit pending transactions")
 	postDateFormat := flag.String("format-post-date", ledger.DefaultPostDateFormat, "Output format for transaction post date")
 	authDateFormat := flag.String("format-auth-date", ledger.DefaultAuthDateFormat, "Output format for transaction authorization date")
@@ -75,7 +71,7 @@ func main() {
 	}
 	defer outputFile.Close()
 
-	response, err := ledger.RequestTransactions(config, start, end, transactionCount, 0)
+	responses, err := ledger.RequestTransactions(config, start, end)
 	if err != nil {
 		log.Printf("Error requesting transactions from plaid: %s\n", err)
 		return
@@ -98,30 +94,23 @@ func main() {
 	}
 
 	options := &ledger.WriteOptions{
-		OmitPending: *omitPending,
-		PostDateFormat: *postDateFormat,
-		AuthDateFormat: *authDateFormat,
-		AmountFormat: *amountFormat,
+		OmitPending:       *omitPending,
+		PostDateFormat:    *postDateFormat,
+		AuthDateFormat:    *authDateFormat,
+		AmountFormat:      *amountFormat,
 		CategoryDelimiter: *categoryDelimiter,
 	}
 
-	err = ledger.WriteTransactions(config, output, response, options)
-	if err != nil {
-		log.Printf("Error writing transactions to output: %s\n", err)
-		return
-	}
-
-	responseTotal := response.Total
-	for response.Total >= transactionCount {
-		response, err = ledger.RequestTransactions(config, start, end, transactionCount, responseTotal)
-		if err != nil {
-			log.Printf("Error requesting transactions from plaid: %s\n", err)
-			return
+	for _, response := range responses {
+		itemConfig, ok := config.Items[response.Item.ID]
+		if !ok {
+			log.Printf("Warning: skipping response for unknown item ID: %q\n", response.Item.ID)
+			continue
 		}
 
-		err = ledger.WriteTransactions(config, output, response, options)
+		err = ledger.WriteTransactions(itemConfig, output, &response, options)
 		if err != nil {
-			log.Printf("Error writing transactions to output: %s\n", err)
+			log.Printf("Error writing transactions for %q to output: %s\n", itemConfig.Name, err)
 			return
 		}
 	}

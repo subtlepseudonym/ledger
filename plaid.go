@@ -2,26 +2,33 @@ package ledger
 
 import (
 	"bytes"
-	"os"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
 const (
+	maxTransactionCount  = 500
 	plaidDomain          = "plaid.com"
 	transactionsEndpoint = "transactions/get"
 )
 
 type Config struct {
-	Environment string            `yaml:"environment"`
-	ClientID    string            `yaml:"client_id"`
-	Secret      string            `yaml:"secret"`
-	Token       string            `yaml:"token"`
-	Accounts    map[string]string `yaml:"accounts"`
+	Environment string                 `yaml:"environment"`
+	ClientID    string                 `yaml:"client_id"`
+	Secret      string                 `yaml:"secret"`
+	Items       map[string]*ItemConfig `yaml:"items"` // map item ID to token and account IDs
+}
+
+type ItemConfig struct {
+	Name     string            `yaml:"name"`
+	Token    string            `yaml:"token"`
+	Accounts map[string]string `yaml:"accounts"` // map account IDs to names
 }
 
 func LoadConfig(filepath, environment string) (*Config, error) {
@@ -46,20 +53,43 @@ func LoadConfig(filepath, environment string) (*Config, error) {
 	return config, nil
 }
 
-func RequestTransactions(config *Config, start, end time.Time, count, offset int) (*TransactionsResponse, error) {
-	accounts := make([]string, 0, len(config.Accounts))
-	for id := range config.Accounts {
+func RequestTransactions(config *Config, start, end time.Time) ([]TransactionsResponse, error) {
+	responses := make([]TransactionsResponse, 0, len(config.Items))
+	for _, itemConfig := range config.Items {
+		res, err := requestItemTransactions(config, itemConfig, start, end, 0)
+		if err != nil {
+			return nil, fmt.Errorf("request item transactions: %w", err)
+		}
+		responses = append(responses, *res)
+
+		total := res.Total
+		for res.Total >= maxTransactionCount {
+			res, err = requestItemTransactions(config, itemConfig, start, end, total)
+			if err != nil {
+				return nil, fmt.Errorf("request item transactions: %w", err)
+			}
+			responses = append(responses, *res)
+			total += res.Total
+		}
+	}
+
+	return responses, nil
+}
+
+func requestItemTransactions(config *Config, itemConfig *ItemConfig, start, end time.Time, offset int) (*TransactionsResponse, error) {
+	accounts := make([]string, 0, len(itemConfig.Accounts))
+	for id := range itemConfig.Accounts {
 		accounts = append(accounts, id)
 	}
 
 	request := &TransactionsRequest{
 		ClientID:    config.ClientID,
 		Secret:      config.Secret,
-		AccessToken: config.Token,
+		AccessToken: itemConfig.Token,
 		StartDate:   start.Format(time.DateOnly),
 		EndDate:     end.Format(time.DateOnly),
 		Options: TransactionsRequestOptions{
-			Count:                      count,
+			Count:                      maxTransactionCount,
 			Offset:                     offset,
 			AccountIDs:                 accounts,
 			IncludeOriginalDescription: true,
@@ -83,7 +113,16 @@ func RequestTransactions(config *Config, start, end time.Time, count, offset int
 		return nil, fmt.Errorf("do request: %w", err)
 	}
 
-	if res.StatusCode != http.StatusOK {
+	switch res.StatusCode {
+	case http.StatusOK:
+	case http.StatusBadRequest:
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, fmt.Errorf("read err response body: %w", err)
+		}
+		fmt.Printf("API Error:\n%s\n", string(b))
+		fallthrough
+	default:
 		return nil, fmt.Errorf("bad response: %s", res.Status)
 	}
 
