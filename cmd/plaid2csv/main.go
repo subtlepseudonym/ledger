@@ -19,8 +19,6 @@ var (
 	environment string
 	configPath  string
 	outputPath  string
-
-	omitHeader bool
 )
 
 func main() {
@@ -32,7 +30,7 @@ func main() {
 	endDate := flag.String("end", "", "End date, inclusive. Format: YYYY-MM-DD")
 
 	// optional
-	flag.BoolVar(&omitHeader, "omit-header", false, "Omit csv header")
+	omitHeader := flag.Bool("omit-header", false, "Omit csv header")
 	omitPending := flag.Bool("omit-pending", false, "Omit pending transactions")
 	postDateFormat := flag.String("format-post-date", ledger.DefaultPostDateFormat, "Output format for transaction post date")
 	authDateFormat := flag.String("format-auth-date", ledger.DefaultAuthDateFormat, "Output format for transaction authorization date")
@@ -78,7 +76,7 @@ func main() {
 	}
 
 	output := csv.NewWriter(outputFile)
-	if !omitHeader {
+	if !*omitHeader {
 		headers := []string{
 			"Post Date",
 			"Authorized Date",
