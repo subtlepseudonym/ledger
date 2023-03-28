@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/subtlepseudonym/ledger"
@@ -14,6 +15,7 @@ import (
 
 const (
 	defaultEnvironment = "sandbox" // free and (mostly) fully featured
+	defaultConfigPath  = "~/.ledger/config.yaml"
 )
 
 var (
@@ -29,7 +31,7 @@ func main() {
 		Use:     "plaid2csv [flags]",
 		Short:   "Query plaid transaction data and output to csv",
 		Version: Version,
-		RunE:   run,
+		RunE:    run,
 	}
 
 	flags := cmd.Flags()
@@ -37,7 +39,7 @@ func main() {
 	flags.String("end", "", "End date, inclusive. Format: YYYY-MM-DD")
 
 	flags.String("environment", defaultEnvironment, "Environment to run in (sandbox|development|production)")
-	flags.String("config", "config.yaml", "Config file path")
+	flags.String("config", defaultConfigPath, "Config file path")
 	flags.String("output", "transactions.csv", "Path for output file")
 
 	flags.Bool("omit-header", false, "Omit csv header")
@@ -78,6 +80,14 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	configPath, _ := flags.GetString("config")
+	if configPath == defaultConfigPath {
+		homePath, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("get user home directory: %w", err)
+		}
+		configPath = strings.Replace(configPath, "~", homePath, 1)
+	}
+
 	config, err := ledger.LoadConfig(configPath, environment)
 	if err != nil {
 		return fmt.Errorf("load config from file: %w", err)
