@@ -38,9 +38,9 @@ func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, response *Tra
 			continue
 		}
 
-		payee := transaction.Name
-		if transaction.MerchantName != "" {
-			payee = transaction.MerchantName
+		payee := transaction.MerchantName
+		if transaction.Name != "" {
+			payee = transaction.Name
 		}
 
 		currency := transaction.ISOCurrency
