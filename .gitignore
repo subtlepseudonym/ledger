@@ -1,7 +1,8 @@
 config.yaml
-transactions.csv
 bin/
+*.csv
 
 # scratch files
+scratch/
 *.json
 tmp
