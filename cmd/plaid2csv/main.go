@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -42,6 +43,7 @@ func main() {
 	flags.String("config", defaultConfigPath, "Config file path")
 	flags.String("output", "transactions.csv", "Path for output file")
 
+	flags.Bool("sort", false, "Sort transactions by date for each account")
 	flags.Bool("omit-header", false, "Omit csv header")
 	flags.Bool("omit-pending", false, "Omit pending transactions")
 	flags.String("format-post-date", ledger.DefaultPostDateFormat, "Output format for transaction post date")
@@ -123,6 +125,7 @@ func run(cmd *cobra.Command, args []string) error {
 		output.Write(headers)
 	}
 
+	sortOutput, _ := flags.GetBool("sort")
 	omitPending, _ := flags.GetBool("omit-pending")
 	postDateFormat, _ := flags.GetString("format-post-date")
 	authDateFormat, _ := flags.GetString("format-auth-date")
@@ -142,6 +145,12 @@ func run(cmd *cobra.Command, args []string) error {
 		if !ok {
 			log.Printf("Warning: skipping response for unknown item ID: %q\n", response.Item.ID)
 			continue
+		}
+
+		if sortOutput {
+			sort.Slice(response.Transactions, func(i, j int) bool {
+				return response.Transactions[j].Date.Time.After(response.Transactions[i].Date.Time)
+			})
 		}
 
 		err = ledger.WriteTransactions(itemConfig, output, &response, options)
