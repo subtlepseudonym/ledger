@@ -57,6 +57,7 @@ func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, response *Tra
 			transaction.Date.Format(options.PostDateFormat),
 			transaction.AuthorizedDate.Format(options.AuthDateFormat),
 			accountName,
+			itemConfig.Name,
 			transaction.CheckNumber,
 			payee,
 			fmt.Sprintf(options.AmountFormat, transaction.Amount),

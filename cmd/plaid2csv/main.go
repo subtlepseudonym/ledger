@@ -112,6 +112,7 @@ func run(cmd *cobra.Command, args []string) error {
 			"Post Date",
 			"Authorized Date",
 			"Account",
+			"Account Name",
 			"Check Number",
 			"Payee",
 			"Amount",
