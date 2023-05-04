@@ -43,13 +43,14 @@ func main() {
 	flags.String("config", defaultConfigPath, "Config file path")
 	flags.String("output", "transactions.csv", "Path for output file")
 
+	flags.Bool("clamp-bimonthly", false, "Remove transactions outside bimonthly period")
 	flags.Bool("sort", false, "Sort transactions by date for each account")
 	flags.Bool("omit-header", false, "Omit csv header")
 	flags.Bool("omit-pending", false, "Omit pending transactions")
+	flags.String("category-delimiter", ledger.DefaultCategoryDelimiter, "Delimiter for joining category hierarchy")
 	flags.String("format-post-date", ledger.DefaultPostDateFormat, "Output format for transaction post date")
 	flags.String("format-auth-date", ledger.DefaultAuthDateFormat, "Output format for transaction authorization date")
 	flags.String("format-amount", ledger.DefaultAmountFormat, "Output format for amount")
-	flags.String("category-delimiter", ledger.DefaultCategoryDelimiter, "Delimiter for joining category hierarchy")
 
 	cmd.MarkFlagRequired("start")
 	cmd.MarkFlagRequired("end")
@@ -125,6 +126,7 @@ func run(cmd *cobra.Command, args []string) error {
 		output.Write(headers)
 	}
 
+	clampBimonthly, _ := flags.GetBool("clamp-bimonthly")
 	sortOutput, _ := flags.GetBool("sort")
 	omitPending, _ := flags.GetBool("omit-pending")
 	postDateFormat, _ := flags.GetString("format-post-date")
@@ -145,6 +147,24 @@ func run(cmd *cobra.Command, args []string) error {
 		if !ok {
 			log.Printf("Warning: skipping response for unknown item ID: %q\n", response.Item.ID)
 			continue
+		}
+
+		if clampBimonthly {
+			clampDate := end
+			if end.Day() < 15 {
+				clampDate = end.AddDate(0, 0, -1*end.Day())
+			} else {
+				clampDate = time.Date(end.Year(), end.Month(), 14, 0, 0, 0, 0, end.Location())
+			}
+
+			var transactions []ledger.Transaction
+			for _, transaction := range response.Transactions {
+				if transaction.AuthorizedDate.Time.After(clampDate) || (transaction.AuthorizedDate.Time.IsZero() && transaction.Date.Time.After(clampDate)) {
+					continue
+				}
+				transactions = append(transactions, transaction)
+			}
+			response.Transactions = transactions
 		}
 
 		if sortOutput {
