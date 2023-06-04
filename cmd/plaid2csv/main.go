@@ -43,7 +43,7 @@ func main() {
 	flags.String("config", defaultConfigPath, "Config file path")
 	flags.String("output", "transactions.csv", "Path for output file")
 
-	flags.Bool("clamp-bimonthly", false, "Remove transactions outside bimonthly period")
+	flags.Bool("clamp-semimonthly", false, "Remove transactions outside bimonthly period")
 	flags.Bool("sort", false, "Sort transactions by date for each account")
 	flags.Bool("omit-header", false, "Omit csv header")
 	flags.Bool("omit-pending", false, "Omit pending transactions")
@@ -126,7 +126,7 @@ func run(cmd *cobra.Command, args []string) error {
 		output.Write(headers)
 	}
 
-	clampBimonthly, _ := flags.GetBool("clamp-bimonthly")
+	clampSemimonthly, _ := flags.GetBool("clamp-semimonthly")
 	sortOutput, _ := flags.GetBool("sort")
 	omitPending, _ := flags.GetBool("omit-pending")
 	postDateFormat, _ := flags.GetString("format-post-date")
@@ -149,17 +149,20 @@ func run(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		if clampBimonthly {
-			clampDate := end
+		if clampSemimonthly {
+			clampEndDate := end
 			if end.Day() < 15 {
-				clampDate = end.AddDate(0, 0, -1*end.Day())
+				clampEndDate = end.AddDate(0, 0, -1*end.Day())
 			} else {
-				clampDate = time.Date(end.Year(), end.Month(), 14, 0, 0, 0, 0, end.Location())
+				clampEndDate = time.Date(end.Year(), end.Month(), 14, 0, 0, 0, 0, end.Location())
 			}
 
 			var transactions []ledger.Transaction
 			for _, transaction := range response.Transactions {
-				if transaction.AuthorizedDate.Time.After(clampDate) || (transaction.AuthorizedDate.Time.IsZero() && transaction.Date.Time.After(clampDate)) {
+				if transaction.AuthorizedDate.Time.IsZero() && (transaction.Date.Time.After(clampEndDate) || start.After(transaction.Date.Time)) {
+					continue
+				}
+				if transaction.AuthorizedDate.Time.After(clampEndDate) || start.After(transaction.AuthorizedDate.Time) {
 					continue
 				}
 				transactions = append(transactions, transaction)
