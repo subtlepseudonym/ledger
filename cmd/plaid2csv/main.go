@@ -159,11 +159,14 @@ func run(cmd *cobra.Command, args []string) error {
 
 			var transactions []ledger.Transaction
 			for _, transaction := range response.Transactions {
-				if transaction.AuthorizedDate.Time.IsZero() && (transaction.Date.Time.After(clampEndDate) || start.After(transaction.Date.Time)) {
-					continue
-				}
-				if transaction.AuthorizedDate.Time.After(clampEndDate) || start.After(transaction.AuthorizedDate.Time) {
-					continue
+				if transaction.AuthorizedDate.Time.IsZero() {
+					if transaction.Date.Time.After(clampEndDate) || start.After(transaction.Date.Time) {
+						continue
+					}
+				} else {
+					if transaction.AuthorizedDate.Time.After(clampEndDate) || start.After(transaction.AuthorizedDate.Time) {
+						continue
+					}
 				}
 				transactions = append(transactions, transaction)
 			}
