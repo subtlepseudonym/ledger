@@ -44,6 +44,7 @@ func main() {
 	flags.String("output", "transactions.csv", "Path for output file")
 
 	flags.Bool("clamp-semimonthly", false, "Remove transactions outside bimonthly period")
+	flags.Bool("inclusive-end-date", false, "Include transactions on the end date")
 	flags.Bool("sort", false, "Sort transactions by date for each account")
 	flags.Bool("omit-header", false, "Omit csv header")
 	flags.Bool("omit-pending", false, "Omit pending transactions")
@@ -80,6 +81,11 @@ func run(cmd *cobra.Command, args []string) error {
 	end, err := time.Parse(time.DateOnly, endDate)
 	if err != nil {
 		return fmt.Errorf("parse end date: %w", err)
+	}
+
+	inclusiveEndDate, _ := flags.GetBool("inclusive-end-date")
+	if inclusiveEndDate {
+		end = end.AddDate(0, 0, 1)
 	}
 
 	configPath, _ := flags.GetString("config")
