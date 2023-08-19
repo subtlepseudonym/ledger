@@ -43,7 +43,7 @@ func main() {
 	flags.String("config", defaultConfigPath, "Config file path")
 	flags.String("output", "transactions.csv", "Path for output file")
 
-	flags.Bool("clamp-semimonthly", false, "Remove transactions outside bimonthly period")
+	flags.Bool("clamp-semimonthly", false, "Remove transactions outside semimonthly period")
 	flags.Bool("inclusive-end-date", false, "Include transactions on the end date")
 	flags.Bool("sort", false, "Sort transactions by date for each account")
 	flags.Bool("omit-header", false, "Omit csv header")
@@ -158,9 +158,9 @@ func run(cmd *cobra.Command, args []string) error {
 		if clampSemimonthly {
 			clampEndDate := end
 			if end.Day() < 15 {
-				clampEndDate = end.AddDate(0, 0, -1*end.Day())
+				clampEndDate = time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, end.Location())
 			} else {
-				clampEndDate = time.Date(end.Year(), end.Month(), 14, 0, 0, 0, 0, end.Location())
+				clampEndDate = time.Date(end.Year(), end.Month(), 16, 0, 0, 0, 0, end.Location())
 			}
 
 			var transactions []ledger.Transaction
