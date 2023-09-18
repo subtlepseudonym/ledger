@@ -158,9 +158,9 @@ func run(cmd *cobra.Command, args []string) error {
 		if clampSemimonthly {
 			clampEndDate := end
 			if end.Day() < 15 {
-				clampEndDate = time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, end.Location())
+				clampEndDate = time.Date(end.Year(), end.Month(), 1, 0, 0, 0, -1, end.Location())
 			} else {
-				clampEndDate = time.Date(end.Year(), end.Month(), 16, 0, 0, 0, 0, end.Location())
+				clampEndDate = time.Date(end.Year(), end.Month(), 16, 0, 0, 0, -1, end.Location())
 			}
 
 			var transactions []ledger.Transaction
