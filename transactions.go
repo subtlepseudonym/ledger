@@ -5,6 +5,16 @@ import (
 	"time"
 )
 
+type TransactionsRefreshRequest struct {
+	ClientID    string `json:"client_id"`
+	Secret      string `json:"secret"`
+	AccessToken string `json:"access_token"`
+}
+
+type TransactionsRefreshResponse struct {
+	RequestID string `json:"request_id"`
+}
+
 type TransactionsRequest struct {
 	ClientID    string                     `json:"client_id"`
 	Secret      string                     `json:"secret"`

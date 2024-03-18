@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	maxTransactionCount  = 500
-	plaidDomain          = "plaid.com"
-	transactionsEndpoint = "transactions/get"
+	maxTransactionCount         = 500
+	plaidDomain                 = "plaid.com"
+	transactionsEndpoint        = "transactions/get"
+	transactionsRefreshEndpoint = "transactions/refresh"
 )
 
 type Config struct {
@@ -53,9 +54,16 @@ func LoadConfig(filepath, environment string) (*Config, error) {
 	return config, nil
 }
 
-func RequestTransactions(config *Config, start, end time.Time) ([]TransactionsResponse, error) {
+func RequestTransactions(config *Config, start, end time.Time, refresh bool) ([]TransactionsResponse, error) {
 	responses := make([]TransactionsResponse, 0, len(config.Items))
 	for _, itemConfig := range config.Items {
+		if refresh {
+			_, err := requestItemRefresh(config, itemConfig)
+			if err != nil {
+				return nil, fmt.Errorf("request item refresh: %w", err)
+			}
+		}
+
 		res, err := requestItemTransactions(config, itemConfig, start, end, 0)
 		if err != nil {
 			return nil, fmt.Errorf("request item transactions: %w", err)
@@ -74,6 +82,52 @@ func RequestTransactions(config *Config, start, end time.Time) ([]TransactionsRe
 	}
 
 	return responses, nil
+}
+
+func requestItemRefresh(config *Config, itemConfig *ItemConfig) (*TransactionsRefreshResponse, error) {
+	request := &TransactionsRefreshRequest{
+		ClientID:    config.ClientID,
+		Secret:      config.Secret,
+		AccessToken: itemConfig.Token,
+	}
+
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(request)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	url := fmt.Sprintf("https://%s.%s/%s", config.Environment, plaidDomain, transactionsRefreshEndpoint)
+	req, err := http.NewRequest(http.MethodPost, url, &body)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Add("content-type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK:
+	case http.StatusBadRequest:
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, fmt.Errorf("read err response body: %w", err)
+		}
+		fmt.Printf("API Error:\n%s\n", string(b))
+		fallthrough
+	default:
+		return nil, fmt.Errorf("bad response: %s", res.Status)
+	}
+
+	var response TransactionsRefreshResponse
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &response, nil
 }
 
 func requestItemTransactions(config *Config, itemConfig *ItemConfig, start, end time.Time, offset int) (*TransactionsResponse, error) {

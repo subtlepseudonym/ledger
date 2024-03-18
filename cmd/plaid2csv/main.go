@@ -109,7 +109,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	defer outputFile.Close()
 
-	responses, err := ledger.RequestTransactions(config, start, end)
+	responses, err := ledger.RequestTransactions(config, start, end, false)
 	if err != nil {
 		return fmt.Errorf("request transactions from plaid: %w", err)
 	}
