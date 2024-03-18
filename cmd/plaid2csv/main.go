@@ -45,6 +45,7 @@ func main() {
 
 	flags.Bool("clamp-semimonthly", false, "Remove transactions outside semimonthly period")
 	flags.Bool("inclusive-end-date", false, "Include transactions on the end date")
+	flags.Bool("refresh", false, "Refresh transaction data from each financial institution ($0.12/item)")
 	flags.Bool("sort", false, "Sort transactions by date for each account")
 	flags.Bool("omit-header", false, "Omit csv header")
 	flags.Bool("omit-pending", false, "Omit pending transactions")
@@ -109,7 +110,8 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	defer outputFile.Close()
 
-	responses, err := ledger.RequestTransactions(config, start, end, false)
+	refreshTransactions, _ := flags.GetBool("refresh")
+	responses, err := ledger.RequestTransactions(config, start, end, refreshTransactions)
 	if err != nil {
 		return fmt.Errorf("request transactions from plaid: %w", err)
 	}
