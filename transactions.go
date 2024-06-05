@@ -5,10 +5,16 @@ import (
 	"time"
 )
 
-type TransactionsRefreshRequest struct {
+type BasicRequest struct {
 	ClientID    string `json:"client_id"`
 	Secret      string `json:"secret"`
 	AccessToken string `json:"access_token"`
+}
+
+type ItemGetResponse struct {
+	Item      Item       `json:"item"`
+	Status    ItemStatus `json:"status"`
+	RequestID string     `json:"request_id"`
 }
 
 type TransactionsRefreshResponse struct {
@@ -50,6 +56,17 @@ type Item struct {
 
 	UpdateType string   `json:"update_type"`
 	Error      APIError `json:"error"`
+}
+
+type ItemStatus struct {
+	Transactions struct {
+		LastSuccessfulUpdate time.Time `json:"last_successful_update"`
+		LastFailedUpdate     time.Time `json:"last_failed_update"`
+	} `json:"transactions"`
+	LastWebhook struct {
+		SentAt   time.Time `json:"sent_at"`
+		CodeSent string    `json:"code_sent"`
+	} `json:"last_webhook"`
 }
 
 type APIError struct {

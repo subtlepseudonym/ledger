@@ -15,8 +15,11 @@ import (
 const (
 	maxTransactionCount         = 500
 	plaidDomain                 = "plaid.com"
+	itemGetEndpoint             = "item/get"
 	transactionsEndpoint        = "transactions/get"
 	transactionsRefreshEndpoint = "transactions/refresh"
+
+	RefreshThresholdLimit = time.Hour * 168 // one week
 )
 
 type Config struct {
@@ -54,13 +57,29 @@ func LoadConfig(filepath, environment string) (*Config, error) {
 	return config, nil
 }
 
-func RequestTransactions(config *Config, start, end time.Time, refresh bool) ([]TransactionsResponse, error) {
+func RequestTransactions(config *Config, start, end time.Time, refreshThreshold time.Duration) ([]TransactionsResponse, error) {
 	responses := make([]TransactionsResponse, 0, len(config.Items))
-	for _, itemConfig := range config.Items {
-		if refresh {
-			_, err := requestItemRefresh(config, itemConfig)
+	now := time.Now()
+	for itemID, itemConfig := range config.Items {
+		if refreshThreshold < RefreshThresholdLimit {
+			res, err := requestItem(config, itemConfig)
 			if err != nil {
-				return nil, fmt.Errorf("request item refresh: %w", err)
+				return nil, fmt.Errorf("request item: %w", err)
+			}
+
+			updateAge := now.Sub(res.Status.Transactions.LastSuccessfulUpdate)
+			if updateAge >= refreshThreshold {
+				fmt.Printf(
+					"%s: item %s: last successful update at %s, %s ago, requesting refresh\n",
+					now.Format(time.RFC3339),
+					itemID,
+					res.Status.Transactions.LastSuccessfulUpdate.Format(time.RFC3339),
+					updateAge.Round(time.Second),
+				)
+				_, err := requestItemRefresh(config, itemConfig)
+				if err != nil {
+					return nil, fmt.Errorf("request item refresh: %w", err)
+				}
 			}
 		}
 
@@ -84,8 +103,54 @@ func RequestTransactions(config *Config, start, end time.Time, refresh bool) ([]
 	return responses, nil
 }
 
+func requestItem(config *Config, itemConfig *ItemConfig) (*ItemGetResponse, error) {
+	request := &BasicRequest{
+		ClientID:    config.ClientID,
+		Secret:      config.Secret,
+		AccessToken: itemConfig.Token,
+	}
+
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(request)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	url := fmt.Sprintf("https://%s.%s/%s", config.Environment, plaidDomain, itemGetEndpoint)
+	req, err := http.NewRequest(http.MethodPost, url, &body)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Add("content-type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK:
+	case http.StatusBadRequest:
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, fmt.Errorf("read err response body: %w", err)
+		}
+		fmt.Printf("API Error:\n%s\n", string(b))
+		fallthrough
+	default:
+		return nil, fmt.Errorf("bad response: %s", res.Status)
+	}
+
+	var response ItemGetResponse
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &response, nil
+}
+
 func requestItemRefresh(config *Config, itemConfig *ItemConfig) (*TransactionsRefreshResponse, error) {
-	request := &TransactionsRefreshRequest{
+	request := &BasicRequest{
 		ClientID:    config.ClientID,
 		Secret:      config.Secret,
 		AccessToken: itemConfig.Token,

@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	Version = "0.1.1"
+	Version = "0.1.2"
 
 	environment string
 	configPath  string
@@ -45,10 +45,10 @@ func main() {
 
 	flags.Bool("clamp-semimonthly", false, "Remove transactions outside semimonthly period")
 	flags.Bool("inclusive-end-date", false, "Include transactions on the end date")
-	flags.Bool("refresh", false, "Refresh transaction data from each financial institution ($0.12/item)")
 	flags.Bool("sort", false, "Sort transactions by date for each account")
 	flags.Bool("omit-header", false, "Omit csv header")
 	flags.Bool("omit-pending", false, "Omit pending transactions")
+	flags.Duration("refresh-threshold", ledger.RefreshThresholdLimit, "WARN: ($0.12/item) Request refresh if older than duration")
 	flags.String("category-delimiter", ledger.DefaultCategoryDelimiter, "Delimiter for joining category hierarchy")
 	flags.String("format-post-date", ledger.DefaultPostDateFormat, "Output format for transaction post date")
 	flags.String("format-auth-date", ledger.DefaultAuthDateFormat, "Output format for transaction authorization date")
@@ -110,8 +110,8 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	defer outputFile.Close()
 
-	refreshTransactions, _ := flags.GetBool("refresh")
-	responses, err := ledger.RequestTransactions(config, start, end, refreshTransactions)
+	refreshThreshold, _ := flags.GetDuration("refresh-threshold")
+	responses, err := ledger.RequestTransactions(config, start, end, refreshThreshold)
 	if err != nil {
 		return fmt.Errorf("request transactions from plaid: %w", err)
 	}
