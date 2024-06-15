@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -69,7 +70,7 @@ func RequestTransactions(config *Config, start, end time.Time, refreshThreshold 
 
 			updateAge := now.Sub(res.Status.Transactions.LastSuccessfulUpdate)
 			if updateAge >= refreshThreshold {
-				fmt.Printf(
+				log.Printf(
 					"%s: item %s: last successful update at %s, %s ago, requesting refresh\n",
 					now.Format(time.RFC3339),
 					itemID,
@@ -134,7 +135,7 @@ func requestItem(config *Config, itemConfig *ItemConfig) (*ItemGetResponse, erro
 		if err != nil {
 			return nil, fmt.Errorf("read err response body: %w", err)
 		}
-		fmt.Printf("API Error:\n%s\n", string(b))
+		log.Printf("API Error:\n%s\n", string(b))
 		fallthrough
 	default:
 		return nil, fmt.Errorf("bad response: %s", res.Status)
@@ -180,7 +181,7 @@ func requestItemRefresh(config *Config, itemConfig *ItemConfig) (*TransactionsRe
 		if err != nil {
 			return nil, fmt.Errorf("read err response body: %w", err)
 		}
-		fmt.Printf("API Error:\n%s\n", string(b))
+		log.Printf("API Error:\n%s\n", string(b))
 		fallthrough
 	default:
 		return nil, fmt.Errorf("bad response: %s", res.Status)
@@ -239,7 +240,7 @@ func requestItemTransactions(config *Config, itemConfig *ItemConfig, start, end 
 		if err != nil {
 			return nil, fmt.Errorf("read err response body: %w", err)
 		}
-		fmt.Printf("API Error:\n%s\n", string(b))
+		log.Printf("API Error:\n%s\n", string(b))
 		fallthrough
 	default:
 		return nil, fmt.Errorf("bad response: %s", res.Status)
