@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"fmt"
 	"log"
@@ -48,6 +49,7 @@ func main() {
 	flags.Bool("sort", false, "Sort transactions by date for each account")
 	flags.Bool("omit-header", false, "Omit csv header")
 	flags.Bool("omit-pending", false, "Omit pending transactions")
+	flags.Bool("yes", false, "Assume yes to prompts; run non-interactively")
 	flags.Duration("refresh-threshold", ledger.RefreshThresholdLimit, "WARN: ($0.12/item) Request refresh if older than duration")
 	flags.String("category-delimiter", ledger.DefaultCategoryDelimiter, "Delimiter for joining category hierarchy")
 	flags.String("format-post-date", ledger.DefaultPostDateFormat, "Output format for transaction post date")
@@ -66,10 +68,14 @@ func main() {
 func run(cmd *cobra.Command, args []string) error {
 	flags := cmd.Flags()
 
+	yes, _ := flags.GetBool("yes")
 	environment, _ := flags.GetString("environment")
-	if environment == "production" {
-		// TODO: prompt "you sure?"
-		return fmt.Errorf("production access not yet implemented")
+	if environment == "production" && !yes {
+		fmt.Println("This will run against the production environment and may incur charges. Enter 'yes' to continue")
+		scanner := bufio.NewScanner(os.Stdin)
+		if scanner.Scan(); scanner.Text() != "yes" {
+			return nil
+		}
 	}
 
 	startDate, _ := flags.GetString("start")
