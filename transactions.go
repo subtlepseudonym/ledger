@@ -17,7 +17,7 @@ type ItemGetResponse struct {
 	RequestID string     `json:"request_id"`
 }
 
-type TransactionsRefreshResponse struct {
+type RefreshResponse struct {
 	RequestID string `json:"request_id"`
 }
 
@@ -45,6 +45,32 @@ type TransactionsResponse struct {
 	Total        int           `json:"total_transactions"`
 }
 
+type InvestmentTransactionsRequest struct {
+	ClientID    string                               `json:"client_id"`
+	Secret      string                               `json:"secret"`
+	AccessToken string                               `json:"access_token"`
+	StartDate   string                               `json:"start_date"`
+	EndDate     string                               `json:"end_date"`
+	Options     InvestmentTransactionsRequestOptions `json:"options"`
+}
+
+type InvestmentTransactionsRequestOptions struct {
+	Count       int      `json:"count"` // max 500
+	Offset      int      `json:"offset"`
+	AccountIDs  []string `json:"account_ids"`
+	AsyncUpdate bool     `json:"async_update"`
+}
+
+type InvestmentTransactionsResponse struct {
+	Item                      Item                    `json:"item"`
+	Accounts                  []Account               `json:"accounts"`
+	Securities                []Security              `json:"securities"`
+	InvestmentTransactions    []InvestmentTransaction `json:"investment_transactions"`
+	RequestID                 string                  `json:"request_id"`
+	Total                     int                     `json:"total_investment_transactions"`
+	IsInvestmentsFallbackItem bool                    `json:"is_investments_fallback_item"`
+}
+
 type Item struct {
 	ID            string `json:"item_id"`
 	InstitutionID string `json:"institution_id"`
@@ -63,6 +89,10 @@ type ItemStatus struct {
 		LastSuccessfulUpdate time.Time `json:"last_successful_update"`
 		LastFailedUpdate     time.Time `json:"last_failed_update"`
 	} `json:"transactions"`
+	Investments struct {
+		LastSuccessfulUpdate time.Time `json:"last_successful_update"`
+		LastFailedUpdate     time.Time `json:"last_failed_update"`
+	} `json:"investments"`
 	LastWebhook struct {
 		SentAt   time.Time `json:"sent_at"`
 		CodeSent string    `json:"code_sent"`
@@ -98,6 +128,49 @@ type Balance struct {
 	UnofficialCurrency string  `json:"unofficial_currency_code"`
 }
 
+type Security struct {
+	ID    string `json:"security_id"`
+	ISIN  string `json:"isin"`
+	CUSIP string `json:"cusip"`
+	SEDOL string `json:"sedol"`
+
+	InstitutionSecurityID string `json:"institution_security_id"`
+	InstitutionID         string `json:"institution_id"`
+	ProxySecurityID       string `json:"proxy_security_id"`
+
+	Name             string `json:"name"`
+	TickerSymbol     string `json:"ticker_symbol"`
+	IsCashEquivalent bool   `json:"is_cash_equivalent"`
+	Type             string `json:"type"`
+
+	ClosePrice           float64   `json:"close_price"`
+	ClosePriceAsOf       Date      `json:"close_price_as_of"`
+	UpdateDatetime       time.Time `json:"update_datetime"`
+	ISOCurrency          string    `json:"iso_currency_code"`
+	UnofficialCurrency   string    `json:"unofficial_currency_code"`
+	MarketIdentifierCode string    `json:"market_identifier_code"`
+	Sector               string    `json:"sector"`
+	Industry             string    `json:"industry"`
+	// OptionContract OptionContract `json:"option_contract"`
+}
+
+type Holding struct {
+	AccountID  string `json:"account_id"`
+	SecurityID string `json:"security_id"`
+
+	InstitutionPrice         float64   `json:"institution_price"`
+	InstitutionPriceAsOf     Date      `json:"institution_price_as_of"`
+	InstitutionPriceDatetime time.Time `json:"institution_price_datetime"`
+	InstitutionValue         float64   `json:"institution_value"`
+
+	CostBasis          float64 `json:"cost_basis"`
+	Quantity           float64 `json:"quantity"`
+	ISOCurrency        string  `json:"iso_currency_code"`
+	UnofficialCurrency string  `json:"unofficial_currency_code"`
+	VestedQuantity     float64 `json:"vested_quantity"`
+	VestedValue        float64 `json:"vested_value"`
+}
+
 type Transaction struct {
 	ID           string `json:"transaction_id"`
 	Type         string `json:"transaction_type"`
@@ -127,6 +200,24 @@ type Transaction struct {
 	Pending              bool   `json:"pending"`
 	PendingTransactionID string `json:"pending_transaction_id"`
 	TransactionCode      string `json:"transaction_code"`
+}
+
+type InvestmentTransaction struct {
+	ID         string `json:"investment_transaction_id"`
+	AccountID  string `json:"account_id"`
+	SecurityID string `json:"security_id"`
+
+	Date     Date    `json:"date"`
+	Name     string  `json:"name"`
+	Quantity float64 `json:"quantity"`
+	Amount   float64 `json:"amount"`
+	Price    float64 `json:"price"`
+	Fees     float64 `json:"fees"`
+	Type     string  `json:"type"`
+	Subtype  string  `json:"subtype"`
+
+	ISOCurrency        string `json:"iso_currency_code"`
+	UnofficialCurrency string `json:"unofficial_currency_code"`
 }
 
 type Date struct {

@@ -32,8 +32,8 @@ func NewWriteOptions() *WriteOptions {
 	}
 }
 
-func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, response *TransactionsResponse, options *WriteOptions) error {
-	for _, transaction := range response.Transactions {
+func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, item *ItemData, options *WriteOptions) error {
+	for _, transaction := range item.Transactions {
 		if options.OmitPending && transaction.Pending {
 			continue
 		}
@@ -43,14 +43,14 @@ func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, response *Tra
 			payee = transaction.Name
 		}
 
+		accountName, ok := itemConfig.Transactions[transaction.AccountID]
+		if !ok {
+			return fmt.Errorf("unknown account: %q", transaction.AccountID)
+		}
+
 		currency := transaction.ISOCurrency
 		if transaction.UnofficialCurrency != "" {
 			currency = transaction.UnofficialCurrency
-		}
-
-		accountName, ok := itemConfig.Accounts[transaction.AccountID]
-		if !ok {
-			return fmt.Errorf("unknown account: %q", transaction.AccountID)
 		}
 
 		output.Write([]string{
@@ -64,6 +64,99 @@ func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, response *Tra
 			currency,
 			strings.Join(transaction.Category, options.CategoryDelimiter),
 			transaction.ID,
+		})
+		if err := output.Error(); err != nil {
+			return fmt.Errorf("write record: %w", err)
+		}
+	}
+
+	for _, transaction := range item.Investments {
+		// FIXME: turn these into constants
+		if transaction.Type != "cash" && transaction.Type != "fee" {
+			continue
+		}
+		if transaction.Subtype == "stock distribution" {
+			// the only non-currency cash subtype
+			continue
+		}
+
+		security, ok := item.Securities[transaction.SecurityID]
+		if !ok {
+			return fmt.Errorf("unknown security: %q", transaction.SecurityID)
+		}
+
+		accountName, ok := itemConfig.Investments[transaction.AccountID]
+		if !ok {
+			return fmt.Errorf("unknown account: %q", transaction.AccountID)
+		}
+
+		currency := transaction.ISOCurrency
+		if transaction.UnofficialCurrency != "" {
+			currency = transaction.UnofficialCurrency
+		}
+
+		output.Write([]string{
+			transaction.Date.Format(options.PostDateFormat),
+			"",
+			accountName,
+			itemConfig.Name,
+			"",
+			security.Name,
+			fmt.Sprintf(options.AmountFormat, transaction.Amount),
+			currency,
+			fmt.Sprintf("%s.%s", transaction.Type, transaction.Subtype),
+			transaction.ID,
+		})
+	}
+
+	output.Flush()
+	if err := output.Error(); err != nil {
+		return fmt.Errorf("flush output: %w", err)
+	}
+
+	return nil
+}
+
+func WriteInvestments(itemConfig *ItemConfig, output *csv.Writer, item *ItemData, options *WriteOptions) error {
+	for _, transaction := range item.Investments {
+		if transaction.Type == "cash" || transaction.Type == "fee" {
+			// non-security transaction types
+			continue
+		}
+
+		security, ok := item.Securities[transaction.SecurityID]
+		if !ok {
+			return fmt.Errorf("unknown security: %q", transaction.SecurityID)
+		}
+
+		currency := transaction.ISOCurrency
+		if transaction.UnofficialCurrency != "" {
+			currency = transaction.UnofficialCurrency
+		}
+
+		accountName, ok := itemConfig.Investments[transaction.AccountID]
+		if !ok {
+			return fmt.Errorf("unknown account: %q", transaction.AccountID)
+		}
+
+		category := fmt.Sprintf("%s.%s", security.Sector, security.Industry)
+		if category == "." {
+			category = "unknown"
+		}
+
+		output.Write([]string{
+			transaction.Date.Format(options.PostDateFormat),
+			accountName,
+			itemConfig.Name,
+			security.Name,
+			fmt.Sprint(transaction.Quantity),
+			fmt.Sprintf(options.AmountFormat, transaction.Amount),
+			fmt.Sprintf(options.AmountFormat, transaction.Price),
+			transaction.ID,
+			fmt.Sprintf(options.AmountFormat, transaction.Fees),
+			currency,
+			security.TickerSymbol,
+			category,
 		})
 		if err := output.Error(); err != nil {
 			return fmt.Errorf("write record: %w", err)

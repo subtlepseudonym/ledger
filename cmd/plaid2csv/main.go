@@ -21,11 +21,12 @@ const (
 )
 
 var (
-	Version = "0.1.2"
+	Version = "0.2.0"
 
-	environment string
-	configPath  string
-	outputPath  string
+	environment            string
+	configPath             string
+	transactionsOutputPath string
+	investmentsOutputPath  string
 )
 
 func main() {
@@ -34,6 +35,7 @@ func main() {
 		Short:   "Query plaid transaction data and output to csv",
 		Version: Version,
 		RunE:    run,
+		SilenceUsage: true,
 	}
 
 	flags := cmd.Flags()
@@ -42,7 +44,8 @@ func main() {
 
 	flags.String("environment", defaultEnvironment, "Environment to run in (sandbox|development|production)")
 	flags.String("config", defaultConfigPath, "Config file path")
-	flags.String("output", "transactions.csv", "Path for output file")
+	flags.String("output-transactions", "transactions.csv", "Path for transactions output file")
+	flags.String("output-investments", "investments.csv", "Path for investments output file")
 
 	flags.Bool("clamp-semimonthly", false, "Remove transactions outside semimonthly period")
 	flags.Bool("inclusive-end-date", false, "Include transactions on the end date")
@@ -109,21 +112,28 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("load config from file: %w", err)
 	}
 
-	outputPath, _ := flags.GetString("output")
-	outputFile, err := os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	transactionsOutputPath, _ := flags.GetString("output-transactions")
+	transactionsOutputFile, err := os.OpenFile(transactionsOutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("open output file for writing: %w", err)
+		return fmt.Errorf("open transactions output file for writing: %w", err)
 	}
-	defer outputFile.Close()
+	defer transactionsOutputFile.Close()
+
+	investmentsOutputPath, _ := flags.GetString("output-investments")
+	investmentsOutputFile, err := os.OpenFile(investmentsOutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("open investments output file for writing: %w", err)
+	}
+	defer investmentsOutputFile.Close()
 
 	refreshThreshold, _ := flags.GetDuration("refresh-threshold")
-	responses, err := ledger.RequestTransactions(config, start, end, refreshThreshold)
+	activity, err := ledger.RequestActivity(config, start, end, refreshThreshold)
 	if err != nil {
-		return fmt.Errorf("request transactions from plaid: %w", err)
+		return fmt.Errorf("request activity from plaid: %w", err)
 	}
 
-	output := csv.NewWriter(outputFile)
 	omitHeader, _ := flags.GetBool("omit-header")
+	transactionsOutput := csv.NewWriter(transactionsOutputFile)
 	if !omitHeader {
 		headers := []string{
 			"Post Date",
@@ -137,7 +147,26 @@ func run(cmd *cobra.Command, args []string) error {
 			"Category",
 			"Transaction ID",
 		}
-		output.Write(headers)
+		transactionsOutput.Write(headers)
+	}
+
+	investmentsOutput := csv.NewWriter(investmentsOutputFile)
+	if !omitHeader {
+		headers := []string{
+			"Post Date",
+			"Account",
+			"Account Name",
+			"Name",
+			"Quantity",
+			"Amount",
+			"Price",
+			"Transaction ID",
+			"Fee",
+			"Fee Currency",
+			"Ticker Symbol",
+			"Category",
+		}
+		investmentsOutput.Write(headers)
 	}
 
 	clampSemimonthly, _ := flags.GetBool("clamp-semimonthly")
@@ -156,10 +185,10 @@ func run(cmd *cobra.Command, args []string) error {
 		CategoryDelimiter: categoryDelimiter,
 	}
 
-	for _, response := range responses {
-		itemConfig, ok := config.Items[response.Item.ID]
+	for _, item := range activity {
+		itemConfig, ok := config.Items[item.ID]
 		if !ok {
-			log.Printf("Warning: skipping response for unknown item ID: %q\n", response.Item.ID)
+			log.Printf("Warning: skipping data for unknown item ID: %q\n", item.ID)
 			continue
 		}
 
@@ -172,7 +201,7 @@ func run(cmd *cobra.Command, args []string) error {
 			}
 
 			var transactions []ledger.Transaction
-			for _, transaction := range response.Transactions {
+			for _, transaction := range item.Transactions {
 				if transaction.AuthorizedDate.Time.IsZero() {
 					if transaction.Date.Time.After(clampEndDate) || start.After(transaction.Date.Time) {
 						continue
@@ -184,18 +213,35 @@ func run(cmd *cobra.Command, args []string) error {
 				}
 				transactions = append(transactions, transaction)
 			}
-			response.Transactions = transactions
+			item.Transactions = transactions
+
+			var investments []ledger.InvestmentTransaction
+			for _, investment := range item.Investments {
+				if investment.Date.Time.After(clampEndDate) || start.After(investment.Date.Time) {
+					continue
+				}
+				investments = append(investments, investment)
+			}
+			item.Investments = investments
 		}
 
 		if sortOutput {
-			sort.Slice(response.Transactions, func(i, j int) bool {
-				return response.Transactions[j].Date.Time.After(response.Transactions[i].Date.Time)
+			sort.Slice(item.Transactions, func(i, j int) bool {
+				return item.Transactions[j].Date.Time.After(item.Transactions[i].Date.Time)
+			})
+			sort.Slice(item.Investments, func(i, j int) bool {
+				return item.Investments[j].Date.Time.After(item.Investments[i].Date.Time)
 			})
 		}
 
-		err = ledger.WriteTransactions(itemConfig, output, &response, options)
+		err = ledger.WriteTransactions(itemConfig, transactionsOutput, item, options)
 		if err != nil {
 			return fmt.Errorf("write transactions for %q to output: %w", itemConfig.Name, err)
+		}
+
+		err = ledger.WriteInvestments(itemConfig, investmentsOutput, item, options)
+		if err != nil {
+			return fmt.Errorf("write investments for %q to output: %w", itemConfig.Name, err)
 		}
 	}
 
