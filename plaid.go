@@ -138,8 +138,9 @@ func checkRefresh(config *Config, itemID string, itemConfig *ItemConfig, refresh
 		return fmt.Errorf("request item: %w", err)
 	}
 
+	lastUpdate := res.Status.Investments.LastSuccessfulUpdate
 	transactionsAge := now.Sub(res.Status.Transactions.LastSuccessfulUpdate)
-	if transactionsAge >= refreshThreshold {
+	if !lastUpdate.IsZero() && transactionsAge >= refreshThreshold {
 		log.Printf(
 			"%s: item %s: last successful transactions update at %s, %s ago, requesting refresh\n",
 			now.Format(time.RFC3339),
@@ -153,8 +154,9 @@ func checkRefresh(config *Config, itemID string, itemConfig *ItemConfig, refresh
 		}
 	}
 
+	lastUpdate = res.Status.Investments.LastSuccessfulUpdate
 	investmentsAge := now.Sub(res.Status.Investments.LastSuccessfulUpdate)
-	if investmentsAge >= refreshThreshold {
+	if !lastUpdate.IsZero() && investmentsAge >= refreshThreshold {
 		log.Printf(
 			"%s: item %s: last successful investments update at %s, %s ago, requesting refresh\n",
 			now.Format(time.RFC3339),
