@@ -79,7 +79,7 @@ func RequestActivity(config *Config, start, end time.Time, refreshThreshold time
 		}
 
 		item := &ItemData{
-			ID: itemID,
+			ID:         itemID,
 			Securities: make(map[string]Security),
 		}
 

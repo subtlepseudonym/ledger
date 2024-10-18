@@ -7,28 +7,31 @@ import (
 )
 
 const (
-	DefaultOmitPending       = false
-	DefaultPostDateFormat    = "2006-01-02"
-	DefaultAuthDateFormat    = "2006-01-02"
-	DefaultAmountFormat      = "%0.2f"
-	DefaultCategoryDelimiter = "."
+	DefaultOmitPending          = false
+	DefaultPostDateFormat       = "2006-01-02"
+	DefaultAuthDateFormat       = "2006-01-02"
+	DefaultAmountFormat         = "%0.2f"
+	DefaultCommodityPriceFormat = "%g"
+	DefaultCategoryDelimiter    = "."
 )
 
 type WriteOptions struct {
-	OmitPending       bool
-	PostDateFormat    string
-	AuthDateFormat    string
-	AmountFormat      string
-	CategoryDelimiter string
+	OmitPending          bool
+	PostDateFormat       string
+	AuthDateFormat       string
+	AmountFormat         string
+	CommodityPriceFormat string
+	CategoryDelimiter    string
 }
 
 func NewWriteOptions() *WriteOptions {
 	return &WriteOptions{
-		OmitPending:       DefaultOmitPending,
-		PostDateFormat:    DefaultPostDateFormat,
-		AuthDateFormat:    DefaultAuthDateFormat,
-		AmountFormat:      DefaultAmountFormat,
-		CategoryDelimiter: DefaultCategoryDelimiter,
+		OmitPending:          DefaultOmitPending,
+		PostDateFormat:       DefaultPostDateFormat,
+		AuthDateFormat:       DefaultAuthDateFormat,
+		AmountFormat:         DefaultAmountFormat,
+		CommodityPriceFormat: DefaultCommodityPriceFormat,
+		CategoryDelimiter:    DefaultCategoryDelimiter,
 	}
 }
 
@@ -151,7 +154,7 @@ func WriteInvestments(itemConfig *ItemConfig, output *csv.Writer, item *ItemData
 			security.Name,
 			fmt.Sprint(transaction.Quantity),
 			fmt.Sprintf(options.AmountFormat, transaction.Amount),
-			fmt.Sprintf(options.AmountFormat, transaction.Price),
+			fmt.Sprintf(options.CommodityPriceFormat, transaction.Price),
 			transaction.ID,
 			fmt.Sprintf(options.AmountFormat, transaction.Fees),
 			currency,

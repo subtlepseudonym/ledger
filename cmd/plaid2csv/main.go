@@ -31,10 +31,10 @@ var (
 
 func main() {
 	cmd := cobra.Command{
-		Use:     "plaid2csv [flags]",
-		Short:   "Query plaid transaction data and output to csv",
-		Version: Version,
-		RunE:    run,
+		Use:          "plaid2csv [flags]",
+		Short:        "Query plaid transaction data and output to csv",
+		Version:      Version,
+		RunE:         run,
 		SilenceUsage: true,
 	}
 
@@ -58,6 +58,7 @@ func main() {
 	flags.String("format-post-date", ledger.DefaultPostDateFormat, "Output format for transaction post date")
 	flags.String("format-auth-date", ledger.DefaultAuthDateFormat, "Output format for transaction authorization date")
 	flags.String("format-amount", ledger.DefaultAmountFormat, "Output format for amount")
+	flags.String("format-commodity-price", ledger.DefaultCommodityPriceFormat, "Output format for commodity price")
 
 	cmd.MarkFlagRequired("start")
 	cmd.MarkFlagRequired("end")
@@ -175,14 +176,16 @@ func run(cmd *cobra.Command, args []string) error {
 	postDateFormat, _ := flags.GetString("format-post-date")
 	authDateFormat, _ := flags.GetString("format-auth-date")
 	amountFormat, _ := flags.GetString("format-amount")
+	commodityPriceFormat, _ := flags.GetString("format-commodity-price")
 	categoryDelimiter, _ := flags.GetString("category-delimiter")
 
 	options := &ledger.WriteOptions{
-		OmitPending:       omitPending,
-		PostDateFormat:    postDateFormat,
-		AuthDateFormat:    authDateFormat,
-		AmountFormat:      amountFormat,
-		CategoryDelimiter: categoryDelimiter,
+		OmitPending:          omitPending,
+		PostDateFormat:       postDateFormat,
+		AuthDateFormat:       authDateFormat,
+		AmountFormat:         amountFormat,
+		CommodityPriceFormat: commodityPriceFormat,
+		CategoryDelimiter:    categoryDelimiter,
 	}
 
 	for _, item := range activity {
