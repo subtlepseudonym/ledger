@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	Version = "0.2.1"
+	Version = "0.2.2"
 
 	environment            string
 	configPath             string
@@ -188,6 +188,8 @@ func run(cmd *cobra.Command, args []string) error {
 		CategoryDelimiter:    categoryDelimiter,
 	}
 
+	var transactionsCount int
+	var investmentsCount int
 	for _, item := range activity {
 		itemConfig, ok := config.Items[item.ID]
 		if !ok {
@@ -237,14 +239,31 @@ func run(cmd *cobra.Command, args []string) error {
 			})
 		}
 
-		err = ledger.WriteTransactions(itemConfig, transactionsOutput, item, options)
+		err, txn := ledger.WriteTransactions(itemConfig, transactionsOutput, item, options)
 		if err != nil {
 			return fmt.Errorf("write transactions for %q to output: %w", itemConfig.Name, err)
 		}
+		transactionsCount += txn
 
-		err = ledger.WriteInvestments(itemConfig, investmentsOutput, item, options)
+		err, inv := ledger.WriteInvestments(itemConfig, investmentsOutput, item, options)
 		if err != nil {
 			return fmt.Errorf("write investments for %q to output: %w", itemConfig.Name, err)
+		}
+		investmentsCount += inv
+	}
+
+	if transactionsCount == 0 {
+		transactionsOutputFile.Close()
+		err = os.Remove(transactionsOutputPath)
+		if err != nil {
+			return fmt.Errorf("remove empty transactions output file: %w", err)
+		}
+	}
+	if investmentsCount == 0 {
+		investmentsOutputFile.Close()
+		err = os.Remove(investmentsOutputPath)
+		if err != nil {
+			return fmt.Errorf("remove empty investments output file: %w", err)
 		}
 	}
 

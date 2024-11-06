@@ -35,7 +35,8 @@ func NewWriteOptions() *WriteOptions {
 	}
 }
 
-func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, item *ItemData, options *WriteOptions) error {
+func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, item *ItemData, options *WriteOptions) (error, int) {
+	var count int
 	for _, transaction := range item.Transactions {
 		if options.OmitPending && transaction.Pending {
 			continue
@@ -48,7 +49,7 @@ func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, item *ItemDat
 
 		accountName, ok := itemConfig.Transactions[transaction.AccountID]
 		if !ok {
-			return fmt.Errorf("unknown account: %q", transaction.AccountID)
+			return fmt.Errorf("unknown account: %q", transaction.AccountID), count
 		}
 
 		currency := transaction.ISOCurrency
@@ -56,6 +57,7 @@ func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, item *ItemDat
 			currency = transaction.UnofficialCurrency
 		}
 
+		count += 1
 		output.Write([]string{
 			transaction.Date.Format(options.PostDateFormat),
 			transaction.AuthorizedDate.Format(options.AuthDateFormat),
@@ -69,7 +71,7 @@ func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, item *ItemDat
 			transaction.ID,
 		})
 		if err := output.Error(); err != nil {
-			return fmt.Errorf("write record: %w", err)
+			return fmt.Errorf("write record: %w", err), count
 		}
 	}
 
@@ -85,12 +87,12 @@ func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, item *ItemDat
 
 		security, ok := item.Securities[transaction.SecurityID]
 		if !ok {
-			return fmt.Errorf("unknown security: %q", transaction.SecurityID)
+			return fmt.Errorf("unknown security: %q", transaction.SecurityID), count
 		}
 
 		accountName, ok := itemConfig.Investments[transaction.AccountID]
 		if !ok {
-			return fmt.Errorf("unknown account: %q", transaction.AccountID)
+			return fmt.Errorf("unknown account: %q", transaction.AccountID), count
 		}
 
 		currency := transaction.ISOCurrency
@@ -98,6 +100,7 @@ func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, item *ItemDat
 			currency = transaction.UnofficialCurrency
 		}
 
+		count += 1
 		output.Write([]string{
 			transaction.Date.Format(options.PostDateFormat),
 			"",
@@ -114,13 +117,14 @@ func WriteTransactions(itemConfig *ItemConfig, output *csv.Writer, item *ItemDat
 
 	output.Flush()
 	if err := output.Error(); err != nil {
-		return fmt.Errorf("flush output: %w", err)
+		return fmt.Errorf("flush output: %w", err), count
 	}
 
-	return nil
+	return nil, count
 }
 
-func WriteInvestments(itemConfig *ItemConfig, output *csv.Writer, item *ItemData, options *WriteOptions) error {
+func WriteInvestments(itemConfig *ItemConfig, output *csv.Writer, item *ItemData, options *WriteOptions) (error, int) {
+	var count int
 	for _, transaction := range item.Investments {
 		if transaction.Type == "cash" || transaction.Type == "fee" {
 			// non-security transaction types
@@ -129,7 +133,7 @@ func WriteInvestments(itemConfig *ItemConfig, output *csv.Writer, item *ItemData
 
 		security, ok := item.Securities[transaction.SecurityID]
 		if !ok {
-			return fmt.Errorf("unknown security: %q", transaction.SecurityID)
+			return fmt.Errorf("unknown security: %q", transaction.SecurityID), count
 		}
 
 		currency := transaction.ISOCurrency
@@ -139,7 +143,7 @@ func WriteInvestments(itemConfig *ItemConfig, output *csv.Writer, item *ItemData
 
 		accountName, ok := itemConfig.Investments[transaction.AccountID]
 		if !ok {
-			return fmt.Errorf("unknown account: %q", transaction.AccountID)
+			return fmt.Errorf("unknown account: %q", transaction.AccountID), count
 		}
 
 		category := fmt.Sprintf("%s.%s", security.Sector, security.Industry)
@@ -147,6 +151,7 @@ func WriteInvestments(itemConfig *ItemConfig, output *csv.Writer, item *ItemData
 			category = "unknown"
 		}
 
+		count += 1
 		output.Write([]string{
 			transaction.Date.Format(options.PostDateFormat),
 			accountName,
@@ -162,14 +167,14 @@ func WriteInvestments(itemConfig *ItemConfig, output *csv.Writer, item *ItemData
 			category,
 		})
 		if err := output.Error(); err != nil {
-			return fmt.Errorf("write record: %w", err)
+			return fmt.Errorf("write record: %w", err), count
 		}
 	}
 
 	output.Flush()
 	if err := output.Error(); err != nil {
-		return fmt.Errorf("flush output: %w", err)
+		return fmt.Errorf("flush output: %w", err), count
 	}
 
-	return nil
+	return nil, count
 }
